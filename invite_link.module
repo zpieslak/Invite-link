@@ -1,0 +1,96 @@
+<?php
+
+/**
+ * @file
+ * Invite link core hooks, menu callbacks and functions.
+ */
+
+/**
+ * Session names.
+ */
+define('INVITE_LINK_SESSION', 'invite_link_user');
+
+/**
+ * Implements hook_menu().
+ */
+function invite_link_menu() {
+  $items['invite/code/%'] = array(
+    'page callback' => 'invite_link_page',
+    'access callback' => TRUE,
+    'page arguments' => array(2),
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['user/%user/invites/link'] = array(
+    'title' => 'Link',
+    'page callback' => 'invite_link_user_overview',
+    'access callback' => 'invite_user_access',
+    'access arguments' => array('send invitations', 1),
+    'type' => MENU_LOCAL_TASK,
+    'weight' => 15,
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_user().
+ */
+function invite_link_user($op, &$edit, &$account, $category = NULL) {
+  switch ($op) {
+    case 'insert':
+      if (isset($_SESSION[INVITE_LINK_SESSION])) {
+        $code = invite_generate_code();
+
+        $invite = _invite_substitutions(array(
+          'inviter' => $_SESSION[INVITE_LINK_SESSION],
+          'email' => $account->mail,
+          'reg_code'  => $code,
+          'code'  => $code,
+        ));
+        invite_save($invite);
+        invite_process($invite, $account);
+
+        unset($_SESSION[INVITE_LINK_SESSION]);
+        $_SESSION[INVITE_SESSION] = $code;
+      }
+      break;
+
+    case 'delete':
+      invite_delete($account->uid);
+      break;
+  }
+}
+
+/**
+ * Return the output of the tab with user's invite link
+ */
+function invite_link_user_overview() {
+  global $user;
+
+  $links = array();
+  $links[] = url('invite/code/' . $user->uid, array('absolute' => TRUE));
+  $links[] = url('invite/code/' . $user->name, array('absolute' => TRUE));
+
+  return theme_item_list($links, t('Your links (can be used independently):'));
+}
+
+/**
+ * Provide the logic for the page on which invitee comes
+ */
+function invite_link_page($user_info) {
+  if (is_numeric($user_info)) {
+    $user_info = array('uid' => $user_info);
+  }
+  else {
+    $user_info = array('name' => $user_info);
+  }
+
+  $user = user_load($user_info);
+  if (!$user) {
+    drupal_not_found();
+  }
+
+  $_SESSION[INVITE_LINK_SESSION] = $user;
+  drupal_goto('user/register');
+}

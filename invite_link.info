@@ -1,0 +1,5 @@
+name = Invite Link
+description = "Provides user's personalized link for invite module."
+dependencies[] = invite
+package = Invite
+core = 6.x
